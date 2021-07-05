@@ -3,8 +3,49 @@ import pandas as pd
 from collections import Counter
 
 
+def print_tree(node, spacing="", feature_names=None, target_names=None):
+    # https://towardsdatascience.com/algorithms-from-scratch-decision-tree-1898d37b02e0
+    """
+    World's most elegant tree printing function.
+
+    Input
+    node: the tree node
+    spacing: used to space creating tree like structure
+    """
+
+    # Base case: we've reached a leaf
+    if node.is_leaf_node():
+        if target_names is not None:
+            print(spacing + "Predict", target_names[node.value])
+        else:
+            print(spacing + "Predict", node.value)
+        return
+
+    # Print the col and value at this node
+    if feature_names is not None:
+        print(spacing + f"[{feature_names[node.feature]} <= {node.threshold}]")
+    else:
+        print(spacing + f"[{node.feature} <= {node.threshold}]")
+
+    # Call this function recursively on the true branch
+    print(spacing + '--> True:')
+    print_tree(node.left, spacing + "  ",
+               feature_names=feature_names, target_names=target_names)
+
+    # Call this function recursively on the false branch
+    print(spacing + '--> False:')
+    print_tree(node.right, spacing + "  ",
+               feature_names=feature_names, target_names=target_names)
+
+
 class Node:
-    def __init__(self, feature=None, threshold=None, left=None, right=None, *, value=None):
+    def __init__(self, feature=None,
+                 threshold=None,
+                 left=None,
+                 right=None,
+                 *,
+                 value=None,
+                 votes=None):
         # the indices of the feature at this node
         self.feature = feature
         # the threshold used for splitting at this node
@@ -13,8 +54,11 @@ class Node:
         self.left = left
         # the right child node
         self.right = right
-        # the output label at this node based on the largest vote
+        # the output label at this node based on the largest vote.
+        # only defined when this is a leaf node
         self.value = value
+        # the votes for each class at this position
+        self.votes = votes
 
     def is_leaf_node(self):
         return self.value is not None
@@ -57,7 +101,7 @@ class MyDecisionTreeClassifier:
                 ):
             # return the output label as the value for the leaf node
             leaf_value = self._predict_class(y)
-            return Node(value=leaf_value)
+            return Node(value=leaf_value, votes=y)
 
         # randomly choose max_features of features
         feature_idxs = np.random.choice(
@@ -259,10 +303,10 @@ if __name__ == '__main__':
     import winsound
 
     # option 0: hearts dataset; option 1: breast cancer dataset
-    DATASET_OPTION = 0
+    DATASET_OPTION = 1
     # option 0: my model; option 1: model by Python Engineer Youtuber;
     # option 2: sklearn model
-    MODEL_OPTION = 2
+    MODEL_OPTION = 0
 
     def accuracy_score(y_true, y_pred):
         accuracy = np.sum(y_true == y_pred) / len(y_true)
@@ -273,8 +317,10 @@ if __name__ == '__main__':
         df = pd.read_csv('heart.csv')
         X = df.drop(columns='target')
         y = df['target']
+        target_names = ['No HD', 'Yes HD']
         X_encoded = pd.get_dummies(
             X, columns=['cp', 'restecg', 'slope', 'thal'])
+        feature_names = X_encoded.columns
         X_train, X_test, y_train, y_test = train_test_split(X_encoded,
                                                             y,
                                                             test_size=0.2,
@@ -284,6 +330,8 @@ if __name__ == '__main__':
         print("[INFO] Using breast cancer dataset")
         data = datasets.load_breast_cancer()
         X, y = data.data, data.target
+        feature_names = data.feature_names
+        target_names = data.target_names
 
         X_train, X_test, y_train, y_test = train_test_split(
             X, y, test_size=0.2, random_state=42
@@ -294,8 +342,8 @@ if __name__ == '__main__':
 
     accuracy_list = []
     time_list = []
-    seeds = np.arange(0, 41)
-    # seeds = np.arange(0, 2)
+    # seeds = np.arange(0, 41)
+    seeds = np.arange(0, 2)
     for seed in seeds:
         np.random.seed(seed)
         print(f"[INFO] Using seed {seed}.")
@@ -335,3 +383,7 @@ if __name__ == '__main__':
 
     print(f"Avg accuracy: {np.mean(accuracy_list):.4f}")
     print(f"Avg training time: {np.mean(time_list):.4f} secs")
+
+    if MODEL_OPTION == 0:
+        print_tree(clf.tree, feature_names=feature_names,
+                   target_names=target_names)
