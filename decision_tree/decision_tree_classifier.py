@@ -72,7 +72,8 @@ class Node:
 
 
 class MyDecisionTree:
-    def __init__(self, max_depth=100, min_samples_split=2, max_features=None):
+    def __init__(self, max_depth=100, min_samples_split=2,
+                 max_features=None, random_state=42):
         # The maximum depth of the tree
         self.max_depth = max_depth
         # The minimum number of samples required to split an internal node
@@ -103,8 +104,8 @@ class MyDecisionTree:
 
         # if hit any stopping criteria, return a leaf node
         if (depth >= self.max_depth
-                    or n_classes == 1
-                    or n_samples < self.min_samples_split
+                or n_classes == 1
+                or n_samples < self.min_samples_split
                 ):
             # return the output label as the value for the leaf node
             leaf_value = self._predict_class(y)
@@ -116,7 +117,7 @@ class MyDecisionTree:
                 votes = np.bincount(y)
             return Node(value=leaf_value, votes=votes)
 
-        # randomly choose max_features of features
+        # randomly permute and choose max_features of features
         feature_idxs = np.random.choice(
             n_features, self.max_features, replace=False)
 
@@ -327,10 +328,16 @@ if __name__ == '__main__':
     import winsound
 
     # option 0: hearts dataset; option 1: breast cancer dataset
-    DATASET_OPTION = 1
+    DATASET_OPTION = 0
     # option 0: my model; option 1: model by Python Engineer Youtuber;
     # option 2: sklearn model
     MODEL_OPTION = 0
+    # option 0: use only seeds 0 and 1; else use seeds from 0 to 40
+    USE_ALL_SEEDS = 1
+    # whether to show confusion matrix
+    SHOW_CM = 0
+    # whether to plot the entire tree of nodes
+    SHOW_TREE = 0
 
     def accuracy_score(y_true, y_pred):
         accuracy = np.sum(y_true == y_pred) / len(y_true)
@@ -342,10 +349,11 @@ if __name__ == '__main__':
         X = df.drop(columns='target')
         y = df['target']
         target_names = ['No HD', 'Yes HD']
-        X_encoded = pd.get_dummies(
-            X, columns=['cp', 'restecg', 'slope', 'thal'])
-        feature_names = X_encoded.columns
-        X_train, X_test, y_train, y_test = train_test_split(X_encoded,
+        # one-hot encoding achieved worse results
+        # X_encoded = pd.get_dummies(
+        #     X, columns=['cp', 'restecg', 'slope', 'thal'])
+        feature_names = X.columns
+        X_train, X_test, y_train, y_test = train_test_split(X,
                                                             y,
                                                             test_size=0.2,
                                                             random_state=42
@@ -366,8 +374,7 @@ if __name__ == '__main__':
 
     accuracy_list = []
     time_list = []
-    # seeds = np.arange(0, 41)
-    seeds = np.arange(0, 2)
+    seeds = np.arange(0, 41) if USE_ALL_SEEDS else np.arange(0, 2)
     for seed in seeds:
         np.random.seed(seed)
         print(f"[INFO] Using seed {seed}.")
@@ -375,15 +382,16 @@ if __name__ == '__main__':
         try:
             if MODEL_OPTION == 0:
                 print("[INFO] Using my implementation.")
-                # Result for 40 different random seeds
-                # Accuracy = 0.8253
+                # Results for hearts dataset
+                # for 40 different random seeds
+                # Avg Accuracy = 0.8225
                 clf = MyDecisionTreeClassifier(max_depth=10)
             elif MODEL_OPTION == 1:
-                # Accuracy = 0.7881
+                # Avg Accuracy = 0.7881
                 print("[INFO] Using Python Engineer's implementation.")
                 clf = DecisionTree(max_depth=10)
             else:
-                # Accuracy = 0.8137
+                # Accuracy = 0.8253
                 print("[INFO] Using sklearn implementation.")
                 clf = DecisionTreeClassifier(criterion='gini',
                                              random_state=seed,
@@ -403,12 +411,13 @@ if __name__ == '__main__':
         time_list.append(total_time)
 
         print(f"Accuracy: {acc:.4f}")
-        print(confusion_matrix(y_test, y_pred))
+        if SHOW_CM:
+            print(confusion_matrix(y_test, y_pred))
         print()
 
     print(f"Avg accuracy: {np.mean(accuracy_list):.4f}")
     print(f"Avg training time: {np.mean(time_list):.4f} secs")
 
-    if MODEL_OPTION == 0:
+    if MODEL_OPTION == 0 and SHOW_TREE:
         print_tree(clf.tree, feature_names=feature_names,
                    target_names=target_names)

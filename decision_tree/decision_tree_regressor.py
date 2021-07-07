@@ -36,7 +36,11 @@ if __name__ == '__main__':
     import winsound
 
     # option 0: my model; option 1: sklearn model
-    MODEL_OPTION = 0
+    MODEL_OPTION = 1
+    # option 0: use only seeds 0 and 1; else use seeds from 0 to 40
+    USE_ALL_SEEDS = 1
+    # whether to plot the entire tree of nodes
+    SHOW_TREE = 0
 
     def rmse_score(y_true, y_pred):
         rmse = np.sqrt(np.sum(np.square(y_true - y_pred)))
@@ -56,8 +60,7 @@ if __name__ == '__main__':
     rmse_list = []
     r2_list = []
     time_list = []
-    # seeds = np.arange(0, 41)
-    seeds = np.arange(0, 2)
+    seeds = np.arange(0, 41) if USE_ALL_SEEDS else np.arange(0, 2)
     for seed in seeds:
         np.random.seed(seed)
         print(f"[INFO] Using seed {seed}.")
@@ -100,5 +103,5 @@ if __name__ == '__main__':
     print(f"Avg R2: {np.mean(r2_list):.4f}")
     print(f"Avg training time: {np.mean(time_list):.4f} secs")
 
-    if MODEL_OPTION == 0:
+    if MODEL_OPTION == 0 and SHOW_TREE:
         print_tree(clf.tree, feature_names=feature_names)
