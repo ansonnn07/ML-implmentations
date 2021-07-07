@@ -1,23 +1,24 @@
 import numpy as np
 import pandas as pd
-from decision_tree_classifier import MyDecisionTree, print_tree
+from .decision_tree_classifier import MyDecisionTree, print_tree
 
 
 class MyDecisionTreeRegressor(MyDecisionTree):
     def __init__(self, max_depth=100, min_samples_split=2, max_features=None):
         super().__init__(max_depth, min_samples_split, max_features)
 
-    def _criterion_value(self, y, feature_col, threshold):
+    def _criterion_value(self, y, left_idxs, right_idxs):
         """Compute the MSE as the criterion"""
-        left_idxs, right_idxs = self._split(feature_col, threshold)
         y_true_left = y[left_idxs]
         y_pred_left = np.mean(y_true_left)
         y_true_right = y[right_idxs]
         y_pred_right = np.mean(y_true_right)
 
         n_samples = len(y_true_left) + len(y_true_right)
-        mse = (1 / n_samples) * (np.sum(np.square(y_true_left - y_pred_left)) +
-                                 np.sum(np.square(y_true_right - y_pred_right)))
+        mse = (1 / n_samples) * (
+            np.sum(np.square(y_true_left - y_pred_left))
+            + np.sum(np.square(y_true_right - y_pred_right))
+        )
         return mse
 
     def _predict_class(self, y):
@@ -25,7 +26,7 @@ class MyDecisionTreeRegressor(MyDecisionTree):
         return np.mean(y)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     # Imports
     import time
     import numpy as np
@@ -76,9 +77,9 @@ if __name__ == '__main__':
                 # RMSE = 631.0241
                 # Avg R2 = 0.1547
                 print("[INFO] Using sklearn implementation.")
-                clf = DecisionTreeRegressor(criterion='mse',
-                                            random_state=seed,
-                                            max_depth=10)
+                clf = DecisionTreeRegressor(
+                    criterion="mse", random_state=seed, max_depth=10
+                )
             clf.fit(X_train, y_train)
             total_time = time.perf_counter() - start_time
             print(f"[INFO] Total training time: {total_time:.4f} secs")

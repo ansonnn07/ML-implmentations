@@ -34,25 +34,35 @@ def print_tree(node, spacing="", feature_names=None, target_names=None):
         print(spacing, f"[{node.feature} <= {threshold}]")
 
     # Call this function recursively on the true branch
-    print(spacing, '--> True:')
-    print_tree(node.left, spacing + "  ",
-               feature_names=feature_names, target_names=target_names)
+    print(spacing, "--> True:")
+    print_tree(
+        node.left,
+        spacing + "  ",
+        feature_names=feature_names,
+        target_names=target_names,
+    )
 
     # Call this function recursively on the false branch
-    print(spacing, '--> False:')
-    print_tree(node.right, spacing + "  ",
-               feature_names=feature_names, target_names=target_names)
+    print(spacing, "--> False:")
+    print_tree(
+        node.right,
+        spacing + "  ",
+        feature_names=feature_names,
+        target_names=target_names,
+    )
 
 
 class Node:
-    def __init__(self, feature=None,
-                 threshold=None,
-                 left=None,
-                 right=None,
-                 *,
-                 value=None,
-                 votes=None,
-                 ):
+    def __init__(
+        self,
+        feature=None,
+        threshold=None,
+        left=None,
+        right=None,
+        *,
+        value=None,
+        votes=None,
+    ):
         # the indices of the feature at this node
         self.feature = feature
         # the threshold used for splitting at this node
@@ -72,8 +82,7 @@ class Node:
 
 
 class MyDecisionTree:
-    def __init__(self, max_depth=100, min_samples_split=2,
-                 max_features=None, random_state=42):
+    def __init__(self, max_depth=100, min_samples_split=2, max_features=None):
         # The maximum depth of the tree
         self.max_depth = max_depth
         # The minimum number of samples required to split an internal node
@@ -103,10 +112,14 @@ class MyDecisionTree:
         n_classes = len(np.unique(y.flatten()))
 
         # if hit any stopping criteria, return a leaf node
-        if (depth >= self.max_depth
-                or n_classes == 1
-                or n_samples < self.min_samples_split
-                ):
+        if (
+            # reached max depth
+            depth >= self.max_depth
+            # or only consists of one class: pure leaf node
+            or n_classes == 1
+            # or insufficient samples
+            or n_samples < self.min_samples_split
+        ):
             # return the output label as the value for the leaf node
             leaf_value = self._predict_class(y)
             if y.dtype == np.float64:
@@ -118,17 +131,22 @@ class MyDecisionTree:
             return Node(value=leaf_value, votes=votes)
 
         # randomly permute and choose max_features of features
-        feature_idxs = np.random.choice(
-            n_features, self.max_features, replace=False)
+        feature_idxs = np.random.choice(n_features, self.max_features, replace=False)
 
         # greedy search the best feature and splitting threshold
         best_feat_idxs, best_thresh = self._best_criteria(X, y, feature_idxs)
 
         # grow the children that result from the split
         left_idxs, right_idxs = self._split(X[:, best_feat_idxs], best_thresh)
+        if len(right_idxs) == 0:
+            # no value is larger than the threshold,
+            # set the right_idxs equal to the left_idxs to avoid complications
+            right_idxs = left_idxs
+        if len(left_idxs) == 0:
+            # same situation for the left_idxs
+            left_idxs = right_idxs
         left_branch = self._grow_tree(X[left_idxs, :], y[left_idxs], depth + 1)
-        right_branch = self._grow_tree(
-            X[right_idxs, :], y[right_idxs], depth + 1)
+        right_branch = self._grow_tree(X[right_idxs, :], y[right_idxs], depth + 1)
         # if not leaf node yet, return a node with no leaf `value` given
         return Node(best_feat_idxs, best_thresh, left_branch, right_branch)
 
@@ -140,24 +158,32 @@ class MyDecisionTree:
     def _predict_class(self, y):
         raise NotImplementedError
 
-    def _criterion_value(self, y, feature_col, threshold):
+    def _criterion_value(self, y, left_idxs, right_idxs):
         raise NotImplementedError
 
     def _best_criteria(self, X, y, feature_idxs):
         best_gini = np.inf
+        split_idx, split_thresh = None, None
         for feature_idx in feature_idxs:
             feature_col = X[:, feature_idx]
             unique_sorted = np.unique(feature_col)
-            # take the midpoints of adjacent sorted unique values as thresholds
-            thresholds = (unique_sorted[:-1] + unique_sorted[1:]) / 2
+            if len(unique_sorted) == 1:
+                thresholds = unique_sorted
+            else:
+                # take the midpoints of adjacent sorted unique values as thresholds
+                thresholds = (unique_sorted[:-1] + unique_sorted[1:]) / 2
             for threshold in thresholds:
-                criterion_val = self._criterion_value(
-                    y, feature_col, threshold)
+                left_idxs, right_idxs = self._split(feature_col, threshold)
+                # if len(left_idxs) == 0 or len(right_idxs) == 0:
+                #     criterion_val = np.inf
+                # else:
+                criterion_val = self._criterion_value(y, left_idxs, right_idxs)
 
-                if criterion_val < best_gini:
+                if criterion_val <= best_gini:
                     best_gini = criterion_val
                     split_idx = feature_idx
                     split_thresh = threshold
+
         return split_idx, split_thresh
 
     def _traverse_tree(self, x, node):
@@ -188,27 +214,32 @@ class MyDecisionTreeClassifier(MyDecisionTree):
         gini = 1 - np.sum(np.square(votes / total_votes))
         return gini
 
-    def _criterion_value(self, y, feature_col, threshold):
+    def _criterion_value(self, y, left_idxs, right_idxs):
         """Compute the total gini_impurity as the criterion"""
-        left_idxs, right_idxs = self._split(feature_col, threshold)
+        votes_left, votes_right = (
+            self._get_votes(y, left_idxs),
+            self._get_votes(y, right_idxs),
+        )
 
-        votes_left, votes_right = self._get_votes(
-            y, left_idxs), self._get_votes(y, right_idxs)
-
-        gini_left, gini_right = self._get_gini(
-            votes_left), self._get_gini(votes_right)
+        gini_left, gini_right = self._get_gini(votes_left), self._get_gini(votes_right)
 
         total_votes_left = np.sum(votes_left)
         total_votes_right = np.sum(votes_right)
         total_votes_all = total_votes_left + total_votes_right
-        total_gini = (total_votes_left / total_votes_all) * gini_left + \
-            (total_votes_right / total_votes_all) * gini_right
+        total_gini = (total_votes_left / total_votes_all) * gini_left + (
+            total_votes_right / total_votes_all
+        ) * gini_right
         return total_gini
 
     def _predict_class(self, y):
         """Compute the highest voted class"""
-        counts = np.bincount(y)
-        return np.argmax(counts)
+        try:
+            counts = np.bincount(y)
+            return np.argmax(counts)
+        except:
+            print(y)
+            print(counts)
+            raise Exception
 
 
 def entropy(y):
@@ -229,8 +260,7 @@ class DecisionTree:
             X = X.values
         if isinstance(y, (pd.DataFrame, pd.Series)):
             y = y.values
-        self.n_feats = X.shape[1] if not self.n_feats else min(
-            self.n_feats, X.shape[1])
+        self.n_feats = X.shape[1] if not self.n_feats else min(self.n_feats, X.shape[1])
         self.root = self._grow_tree(X, y)
 
     def predict(self, X):
@@ -317,14 +347,14 @@ class DecisionTree:
         return most_common
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     # Imports
     import time
     import numpy as np
     from sklearn import datasets
     from sklearn.tree import DecisionTreeClassifier
     from sklearn.model_selection import train_test_split
-    from sklearn.metrics import confusion_matrix
+    from sklearn.metrics import confusion_matrix, accuracy_score
     import winsound
 
     # option 0: hearts dataset; option 1: breast cancer dataset
@@ -333,31 +363,25 @@ if __name__ == '__main__':
     # option 2: sklearn model
     MODEL_OPTION = 0
     # option 0: use only seeds 0 and 1; else use seeds from 0 to 40
-    USE_ALL_SEEDS = 1
+    USE_ALL_SEEDS = 0
     # whether to show confusion matrix
     SHOW_CM = 0
     # whether to plot the entire tree of nodes
     SHOW_TREE = 0
 
-    def accuracy_score(y_true, y_pred):
-        accuracy = np.sum(y_true == y_pred) / len(y_true)
-        return accuracy
-
     if DATASET_OPTION == 0:
         print("[INFO] Using UCI hearts dataset")
-        df = pd.read_csv('heart.csv')
-        X = df.drop(columns='target')
-        y = df['target']
-        target_names = ['No HD', 'Yes HD']
+        df = pd.read_csv("heart.csv")
+        X = df.drop(columns="target")
+        y = df["target"]
+        target_names = ["No HD", "Yes HD"]
         # one-hot encoding achieved worse results
         # X_encoded = pd.get_dummies(
         #     X, columns=['cp', 'restecg', 'slope', 'thal'])
         feature_names = X.columns
-        X_train, X_test, y_train, y_test = train_test_split(X,
-                                                            y,
-                                                            test_size=0.2,
-                                                            random_state=42
-                                                            )
+        X_train, X_test, y_train, y_test = train_test_split(
+            X, y, test_size=0.2, random_state=42
+        )
     else:
         print("[INFO] Using breast cancer dataset")
         data = datasets.load_breast_cancer(as_frame=True)
@@ -393,9 +417,9 @@ if __name__ == '__main__':
             else:
                 # Accuracy = 0.8253
                 print("[INFO] Using sklearn implementation.")
-                clf = DecisionTreeClassifier(criterion='gini',
-                                             random_state=seed,
-                                             max_depth=10)
+                clf = DecisionTreeClassifier(
+                    criterion="gini", random_state=seed, max_depth=10
+                )
             clf.fit(X_train, y_train)
             total_time = time.perf_counter() - start_time
             print(f"[INFO] Total training time: {total_time:.4f} secs")
@@ -419,5 +443,5 @@ if __name__ == '__main__':
     print(f"Avg training time: {np.mean(time_list):.4f} secs")
 
     if MODEL_OPTION == 0 and SHOW_TREE:
-        print_tree(clf.tree, feature_names=feature_names,
-                   target_names=target_names)
+        print_tree(clf.tree, feature_names=feature_names, target_names=target_names)
+
